@@ -1,0 +1,587 @@
+<?php
+    function strigToBinary($string)
+    {
+        $characters = str_split($string);
+     
+        $binary = [];
+        foreach ($characters as $character) {
+            $data = unpack('H*', $character);
+            $binary[] = base_convert($data[1], 16, 2);
+        }
+     
+        return implode(' ', $binary);    
+    }
+     
+    function binaryToString($binary)
+    {
+        $binaries = explode(' ', $binary);
+     
+        $string = null;
+        foreach ($binaries as $binary) {
+            $string .= pack('H*', dechex(bindec($binary)));
+        }
+     
+        return $string;    
+    }
+
+
+
+ function String2Hex($string){
+    $hex='';
+    for ($i=0; $i < strlen($string); $i++){
+        $hex .= dechex(ord($string[$i]));
+    }
+    return $hex;
+}
+ 
+ 
+function Hex2String($hex){
+    $string='';
+    for ($i=0; $i < strlen($hex)-1; $i+=2){
+        $string .= chr(hexdec($hex[$i].$hex[$i+1]));
+    }
+    return $string;
+}   
+
+
+
+                $eks = array('.txt');
+                $ekst = strrchr($_FILES['teks']['name'],'.');
+                
+                if(!in_array($ekst,$eks)) {
+                    echo "<script>alert('Masukkan File .txt!');location.replace('enkripsi.php');</script>";
+                }
+            
+                if ($_FILES['teks']['error'] == UPLOAD_ERR_OK && is_uploaded_file($_FILES['teks']['tmp_name'])) { //checks that file is uploaded
+                    $isi = file_get_contents($_FILES['teks']['tmp_name']); 
+                }
+
+
+
+                function is_even($num)
+{
+    // returns true if $num is even, false if not
+    return ($num%2==0);
+}
+
+function asc2bin($char)
+{
+    // returns 8bit binary value from ASCII char
+    // eg; asc2bin("a") returns 01100001
+    return str_pad(decbin(ord($char)), 8, "0", STR_PAD_LEFT);
+}
+
+function bin2asc($bin)
+{
+    // returns ASCII char from 8bit binary value
+    // eg; bin2asc("01100001") returns a
+    // argument MUST be sent as string
+    return chr(bindec($bin));
+}
+
+function rgb2bin($rgb)
+{
+    // returns binary from rgb value (according to evenness)
+    // this way, we can store one ascii char in 2.6 pixels
+    // not a great ratio, but it works (albeit slowly)
+
+    $binstream = "";
+    $red = ($rgb >> 16) & 0xFF;
+    $green = ($rgb >> 8) & 0xFF;
+    $blue = $rgb & 0xFF;
+
+    if(is_even($red))
+    {
+        $binstream .= "1";
+    } else {
+        $binstream .= "0";
+    }
+    if(is_even($green))
+    {
+        $binstream .= "1";
+    } else {
+        $binstream .= "0";
+    }
+    if(is_even($blue))
+    {
+        $binstream .= "1";
+    } else {
+        $binstream .= "0";
+    }
+
+    return $binstream;
+}
+
+function steg_hide($maskfile, $hidefile)
+{
+    // hides $hidefile in $maskfile
+
+    // initialise some vars
+    $binstream = "";
+    $recordstream = "";
+    $make_odd = Array();
+
+    // create images
+    $pic = ImageCreateFromJPEG($maskfile['tmp_name']);
+    $attributes = getImageSize($maskfile['tmp_name']);
+    $outpic = ImageCreateFromJPEG($maskfile['tmp_name']);
+
+    if(!$pic || !$outpic || !$attributes)
+    {
+        // image creation failed
+        return "cannot create images - maybe GDlib not installed?";
+    }
+
+    // read file to be hidden
+    $data = $hidefile;
+
+    // generate unique boundary that does not occur in $data
+    // 1 in 16581375 chance of a file containing all possible 3 ASCII char sequences
+    // 1 in every ~1.65 billion files will not be steganographisable by this script
+    // though my maths might be wrong.
+    // if you really want to get silly, add another 3 random chars. (1 in 274941996890625)
+    // ^^^^^^^^^^^^ would require appropriate modification to decoder.
+    $boundary="";
+    do
+    {
+        $boundary .= chr(rand(0,255)).chr(rand(0,255)).chr(rand(0,255));
+    } while(strpos($data,$boundary)!==false && strpos('rahasia.txt',$boundary)!==false);
+
+    // add boundary to data
+    $data = $boundary.'rahasia.txt'.$boundary.$data.$boundary;
+    // you could add all sorts of other info here (eg IP of encoder, date/time encoded, etc, etc)
+    // decoder reads first boundary, then carries on reading until boundary encountered again
+    // saves that as filename, and carries on again until final boundary reached
+
+    // check that $data will fit in maskfile
+    if(strlen($data)*8 > ($attributes[0]*$attributes[1])*3)
+    {
+        // remove images
+        ImageDestroy($outpic);
+        ImageDestroy($pic);
+        return "Cannot fit ".'rahasia.txt'." in ".$maskfile['name'].".<br />"."rahasia.txt"." requires mask to contain at least ".(intval((strlen($data)*8)/3)+1)." pixels.<br />Maximum filesize that ".$maskfile['name']." can hide is ".intval((($attributes[0]*$attributes[1])*3)/8)." bytes";
+    }
+
+    // convert $data into array of true/false
+    // pixels in mask are made odd if true, even if false
+    for($i=0; $i<strlen($data) ; $i++)
+    {
+        // get 8bit binary representation of each char
+        $char = $data{$i};
+        $binary = asc2bin($char);
+
+        // save binary to string
+        $binstream .= $binary;
+
+        // create array of true/false for each bit. confusingly, 0=true, 1=false
+        for($j=0 ; $j<strlen($binary) ; $j++)
+        {
+            $binpart = $binary{$j};
+            if($binpart=="0")
+            {
+                $make_odd[] = true;
+            } else {
+                $make_odd[] = false;
+            }
+        }
+    }
+
+    // now loop through each pixel and modify colour values according to $make_odd array
+    $y=0;
+    for($i=0,$x=0; $i<sizeof($make_odd) ; $i+=3,$x++)
+    {
+        // read RGB of pixel
+        $rgb = ImageColorAt($pic, $x,$y);
+        $cols = Array();
+        $cols[] = ($rgb >> 16) & 0xFF;
+        $cols[] = ($rgb >> 8) & 0xFF;
+        $cols[] = $rgb & 0xFF;
+
+        for($j=0 ; $j<sizeof($cols) ; $j++)
+        {
+            if($make_odd[$i+$j]===true && is_even($cols[$j]))
+            {
+                // is even, should be odd
+                $cols[$j]++;
+            } else if($make_odd[$i+$j]===false && !is_even($cols[$j])){
+                // is odd, should be even
+                $cols[$j]--;
+            } // else colour is fine as is
+        }
+
+        // modify pixel
+        $temp_col = ImageColorAllocate($outpic,$cols[0],$cols[1],$cols[2]);
+        ImageSetPixel($outpic,$x,$y,$temp_col);
+
+        // if at end of X, move down and start at x=0
+        if($x==($attributes[0]-1))
+        {
+            $y++;
+            // $x++ on next loop converts x to 0
+            $x=-1;
+        }
+    }
+
+    // output modified image as PNG (or other *LOSSLESS* format)
+    $nama_gambar=rand(0,100)."encoded.jpeg";
+    header("Content-Type: application/octet-stream");
+    header("Content-Disposition: attachment; filename=$nama_gambar");
+    header('Content-Transfer-Encoding: binary'); 
+    header('Cache-Control: must-revalidate, post-check=0, pre-check=0'); 
+    ImagePNG($outpic);
+
+    // remove images
+    ImageDestroy($outpic);
+    ImageDestroy($pic);
+    exit();
+}
+
+function steg_recover($gambar)
+{
+    // recovers file hidden in a PNG image
+
+    $binstream = "";
+    $filename = "";
+
+    // get image and width/height
+    $attributes = getImageSize($gambar['tmp_name']);
+    $pic = ImageCreateFromPNG($gambar['tmp_name']);
+
+    if(!$pic || !$attributes)
+    {
+        return "could not read image";
+    }
+
+    // get boundary
+    $bin_boundary = "";
+    $boundary="";
+    for($x=0 ; $x<8 ; $x++)
+    {
+        $bin_boundary .= rgb2bin(ImageColorAt($pic, $x,0));
+    }
+    
+    // convert boundary to ascii
+    for($i=0 ; $i<strlen($bin_boundary) ; $i+=8)
+    {
+        $binchunk = substr($bin_boundary,$i,8);
+        $boundary .= bin2asc($binchunk);
+    }
+
+
+    // now convert RGB of each pixel into binary, stopping when we see $boundary again
+
+    // do not process first boundary
+    $start_x = 8;
+    $ascii="";
+    for($y=0 ; $y<$attributes[1] ; $y++)
+    {
+        for($x=$start_x ; $x<$attributes[0] ; $x++)
+        {
+            // generate binary
+            $binstream .= rgb2bin(ImageColorAt($pic, $x,$y));
+            // convert to ascii
+            if(strlen($binstream)>=8)
+            {
+                $binchar = substr($binstream,0,8);
+                $ascii .= bin2asc($binchar);
+                $binstream = substr($binstream,8);
+            }
+
+            // test for boundary
+            if(strpos($ascii,$boundary)!==false)
+            {
+                // remove boundary
+                $ascii = substr($ascii,0,strlen($ascii)-3);
+
+                if(empty($filename))
+                {
+                    $filename = $ascii;
+                    $ascii = "";
+                } else {
+                    // final boundary; exit both 'for' loops
+                    break 2;
+                }
+            }
+        }
+        // on second line of pixels or greater; we can start at x=0 now
+        $start_x = 0;
+    }
+
+    // remove image from memory
+    ImageDestroy($pic);
+
+    /* and output result (retaining original filename)
+    header("Content-type: text/plain");
+    header("Content-Disposition: attachment; filename=".$filename);*/
+    return $ascii;
+}
+            
+
+?>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+    <title>CIPHER - PROGRAM KRIFTOGRAFI</title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&subset=latin,cyrillic-ext" rel="stylesheet" type="text/css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" type="text/css">
+
+    <!-- Bootstrap Core Css -->
+    <link href="plugins/bootstrap/css/bootstrap.css" rel="stylesheet">
+
+    <!-- Waves Effect Css -->
+    <link href="plugins/node-waves/waves.css" rel="stylesheet" />
+	
+	
+    <!-- Bootstrap Select Css -->
+    <link href="../../plugins/bootstrap-select/css/bootstrap-select.css" rel="stylesheet" />
+
+    <!-- Animation Css -->
+    <link href="plugins/animate-css/animate.css" rel="stylesheet" />
+
+    <!-- Morris Chart Css-->
+    <link href="plugins/morrisjs/morris.css" rel="stylesheet" />
+
+    <!-- Custom Css -->
+    <link href="css/style.css" rel="stylesheet">
+
+    <!-- AdminBSB Themes. You can choose a theme from css/themes instead of get all themes -->
+    <link href="css/themes/all-themes.css" rel="stylesheet" />
+</head>
+
+<body class="theme-red">
+<?php
+		
+		$extension = strtolower(substr($_FILES['maskfile']['name'],-3));
+         if($extension=="jpg")
+             {
+                        
+                        $deret = $_POST['jd_enkripsi'];
+                    $tab = "abcdefghijklmnopqrstuvwxyz";
+                    $tab1 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                    
+                    $ciparr = array();
+                    
+                    $idx = 0;
+                    for($i=0;$i<strlen($isi);$i++) {
+                        for($j=0;$j<strlen($tab);$j++) {
+                            if($isi[$i]==" " || !ctype_alpha($isi[$i])) {
+                                array_push($ciparr,$isi[$i]);
+                                continue;
+                            }
+                            
+                            if($isi[$i]==$tab[$j]) {
+                                $idx = $j;
+                                $cip = ($j+$deret)%26;
+                                array_push($ciparr,$tab[$cip]);
+                            }
+                            
+                            if($isi[$i]==$tab1[$j]) {
+                                $idx = $j;
+                                $cip = ($j+$deret)%26;
+                                array_push($ciparr,$tab1[$cip]);
+                            }
+                        }
+                    }
+                    $cipher1 = implode('',$ciparr);
+                    //$cipherText = Encipher($text, $deret);
+                    $hex = String2Hex($cipher1);
+                    steg_hide($_FILES['maskfile'],$hex);                                               
+                   // $string = $hex;
+                    //$binary = strigToBinary($string).PHP_EOL;
+                                                                     
+                    //echo $hex;
+                   } else 
+    {
+        $result="Only .jpg mask files are supported";
+        echo $result;
+    }
+
+
+                
+                
+		?>	
+    <!-- Page Loader -->
+    <div class="page-loader-wrapper">
+        <div class="loader">
+            <div class="preloader">
+                <div class="spinner-layer pl-red">
+                    <div class="circle-clipper left">
+                        <div class="circle"></div>
+                    </div>
+                    <div class="circle-clipper right">
+                        <div class="circle"></div>
+                    </div>
+                </div>
+            </div>
+            <p>Please wait...</p>
+        </div>
+    </div>
+    <!-- #END# Page Loader -->
+    <!-- Overlay For Sidebars -->
+    <div class="overlay"></div>
+    <!-- #END# Overlay For Sidebars -->
+    <!-- Search Bar -->
+    <div class="search-bar">
+        <div class="search-icon">
+            <i class="material-icons">search</i>
+        </div>
+        <input type="text" placeholder="START TYPING...">
+        <div class="close-search">
+            <i class="material-icons">close</i>
+        </div>
+    </div>
+    <!-- #END# Search Bar -->
+    <!-- Top Bar -->
+    <nav class="navbar">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                <a href="javascript:void(0);" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar-collapse" aria-expanded="false"></a>
+                <a href="javascript:void(0);" class="bars"></a>
+                <a class="navbar-brand" href="index.html">PROGRAM KRIFTOGRAFI</a>
+            </div>
+        </div>
+    </nav>
+    <!-- #Top Bar -->
+    <section>
+        <!-- Left Sidebar -->
+        <aside id="leftsidebar" class="sidebar">
+            <!-- Menu -->
+            <div class="menu">
+                <ul class="list">
+                    <li class="header">MENU NAVIGASI</li>
+
+                        <a href="index.php">
+                            <span>Beranda</span>
+                        </a>
+                    				
+					<li class="active">
+						<a href="caesar.php">
+                            <span>Kriptografi</span>
+                        </a>
+					</li>
+						
+                    <li> </div>
+            <!-- #Menu -->
+        </aside>
+        <!-- #END# Left Sidebar -->
+        <!-- Right Sidebar --> <!-- #END# Right Sidebar -->
+    </section>
+
+    <section class="content">
+        <div class="container-fluid">
+			<div class="row">
+                <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                    <div class="card">
+                        <div class="body">
+
+                            <!-- Tab panes -->
+                            
+
+						</div>
+					</div>
+				</div>
+				
+
+					<div class="col-sm-12">
+						<div class="card">
+							<div class="body">
+								<div class="tab-content">
+									<div role="tabpanel" class="tab-pane fade in active" id="home">
+										<b>PlainText</b><br><br>
+												<div class="row clearfix">
+													<div class="col-sm-12" id="caesar">
+														<form  action="caesar.php#caesar" method="get">
+															<div class="form-group">
+																<div class="form-line" >
+                                                                    <textarea name="text" rows="4" class="form-control no-resize" placeholder="Masukan PlaningText..."><?php echo $isi; ?></textarea>
+																	
+																	
+																</div>
+															</div>
+                                                            <b>Hasil CipherText</b><br><br>
+															<div class="form-group">
+																<div class="form-line" >
+                                                                    
+                                                                <textarea name="text" rows="4" class="form-control no-resize" placeholder="Masukan PlaningText..."><?php echo $hex; ?></textarea>
+																</div>
+															</div>
+															
+															<button type="submit" value="Enkripsi" class="btn bg-teal waves-effect" onclick="Decipher();">
+															<span>ENKRIPSI</span>
+															</button>
+														</form>
+													</div>
+												</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					
+					
+			</div>
+		</div>
+            <!-- #END# Example Tab -->   
+	   
+    </section>
+
+	    <!-- Select Plugin Js -->
+    <script src="../../plugins/bootstrap-select/js/bootstrap-select.js"></script>
+	
+    <!-- Jquery Core Js -->
+    <script src="plugins/jquery/jquery.min.js"></script>
+
+    <!-- Bootstrap Core Js -->
+    <script src="plugins/bootstrap/js/bootstrap.js"></script>
+	
+	    <!-- Select Plugin Js -->
+    <script src="../../plugins/bootstrap-select/js/bootstrap-select.js"></script>
+
+    <!-- Select Plugin Js -->
+    <script src="plugins/bootstrap-select/js/bootstrap-select.js"></script>
+
+    <!-- Slimscroll Plugin Js -->
+    <script src="plugins/jquery-slimscroll/jquery.slimscroll.js"></script>
+
+    <!-- Waves Effect Plugin Js -->
+    <script src="plugins/node-waves/waves.js"></script>
+
+    <!-- Jquery CountTo Plugin Js -->
+    <script src="plugins/jquery-countto/jquery.countTo.js"></script>
+
+    <!-- Morris Plugin Js -->
+    <script src="plugins/raphael/raphael.min.js"></script>
+    <script src="plugins/morrisjs/morris.js"></script>
+
+    <!-- ChartJs -->
+    <script src="plugins/chartjs/Chart.bundle.js"></script>
+
+    <!-- Flot Charts Plugin Js -->
+    <script src="plugins/flot-charts/jquery.flot.js"></script>
+    <script src="plugins/flot-charts/jquery.flot.resize.js"></script>
+    <script src="plugins/flot-charts/jquery.flot.pie.js"></script>
+    <script src="plugins/flot-charts/jquery.flot.categories.js"></script>
+    <script src="plugins/flot-charts/jquery.flot.time.js"></script>
+
+    <!-- Sparkline Chart Plugin Js -->
+    <script src="plugins/jquery-sparkline/jquery.sparkline.js"></script>
+
+    <!-- Custom Js -->
+    <script src="js/admin.js"></script>
+    <script src="js/pages/index.js"></script>
+	
+	    <link href="../../plugins/bootstrap-select/css/bootstrap-select.css" rel="stylesheet" />
+
+    <!-- Demo Js -->
+    <script src="js/demo.js"></script>
+</body>
+
+</html>
